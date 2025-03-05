@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Multiple Cannonballs</title>
+        <style>
+            button {
+                padding: 7px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+
+    <body>
+        <canvas id="myCanvas" style="border:2px solid"></canvas>
+
+        <div>
+            <button onclick="Addball()">Add ball</button>
+        </div>
+
+        <script>
+            var canvas = document.getElementById("myCanvas");
+            var c = canvas.getContext("2d");
+
+            canvas.width = window.innerWidth - 20;
+            canvas.height = window.innerHeight - 100;
+
+            var simMinWidth = 20.0;
+            var cScale = Math.min(canvas.width, canvas.height) / simMinWidth;
+            var simWidth = canvas.width / cScale;
+            var simHeight = canvas.height / cScale;
+
+            function cX(pos) {
+                return pos.x * cScale;
+            }
+
+            function cY(pos) {
+                return canvas.height - pos.y * cScale;
+            }
+
+            var gravity = { x: 0.0, y: -10.0 };
+            var timeStep = 1.0 / 60.0;
+
+            // 여러 개의 공을 저장하는 배열
+            var balls = [];
+
+            // 여러 개의 공을 생성하는 함수
+            function createBalls(numBalls) {
+                for (let i = 0; i < numBalls; i++) {
+                    balls.push({
+                        radius: 0.2,
+                        mass: 1.0, // 질량 추가
+                        pos: { x: Math.random() * simWidth, y: Math.random() * simHeight },
+                        vel: { x: (Math.random() - 0.5) * 20, y: Math.random() * 15 + 5 }
+                    });
+                }
+            }
+
+            createBalls(1);
+
+            function Addball() {
+                createBalls(10);
+            }
+
+            function draw() {
+                c.clearRect(0, 0, canvas.width, canvas.height);
+
+                c.fillStyle = "#FF0000";
+
+                for (let ball of balls) { 
+                    c.beginPath();
+                    c.arc(cX(ball.pos), cY(ball.pos), cScale * ball.radius, 0.0, 2.0 * Math.PI);
+                    c.closePath();
+                    c.fill();
+                }
+            }
+
+            function CollisionDetection(ballA, ballB) {
+                let dx = ballB.pos.x - ballA.pos.x;
+                let dy = ballB.pos.y - ballA.pos.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+
+                let minDist = ballA.radius + ballB.radius;
+
+                if (distance < minDist) {
+                    let moveX = (dx / distance) * (minDist - distance);
+                    let moveY = (dy / distance) * (minDist - distance);
+
+                    ballA.pos.x -= moveX / 2;
+                    ballA.pos.y -= moveY / 2;
+                    ballB.pos.x += moveX / 2;
+                    ballB.pos.y += moveY / 2;
+
+                    // 충돌 후 속도 업데이트
+                    let normalX = dx / distance;
+                    let normalY = dy / distance;
+
+                    let relativeVelX = ballB.vel.x - ballA.vel.x;
+                    let relativeVelY = ballB.vel.y - ballA.vel.y;
+                    let speed = (relativeVelX * normalX + relativeVelY * normalY);
+
+                    if (speed > 0) return;
+
+                    let impulse = 2 * speed / (ballA.mass + ballB.mass);
+
+                    ballA.vel.x += impulse * ballB.mass * normalX;
+                    ballA.vel.y += impulse * ballB.mass * normalY;
+                    ballB.vel.x -= impulse * ballA.mass * normalX;
+                    ballB.vel.y -= impulse * ballA.mass * normalY;
+                }
+            }
+
+            function simulate() {
+                for (let ball of balls) {
+                    ball.vel.x += gravity.x * timeStep;
+                    ball.vel.y += gravity.y * timeStep;
+                    ball.pos.x += ball.vel.x * timeStep;
+                    ball.pos.y += ball.vel.y * timeStep;
+
+                    // 벽 충돌 감지
+                    if (ball.pos.x < 0.0) {
+                        ball.pos.x = 0.0;
+                        ball.vel.x = -ball.vel.x;
+                    }
+                    if (ball.pos.x > simWidth) {
+                        ball.pos.x = simWidth;
+                        ball.vel.x = -ball.vel.x;
+                    }
+                    if (ball.pos.y < 0.0) {
+                        ball.pos.y = 0.0;
+                        ball.vel.y = -ball.vel.y * 0.8;
+                    }
+                }
+
+                for (let i = 0; i < balls.length; i++) {
+                    for (let j = i + 1; j < balls.length; j++) {
+                        CollisionDetection(balls[i], balls[j]);
+                    }
+                }
+            }
+
+            function update() {
+                simulate();
+                draw();
+                requestAnimationFrame(update);
+            }
+
+            update();
+        </script>
+    </body>
+</html>
