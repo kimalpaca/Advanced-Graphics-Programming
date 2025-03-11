@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>Multiple Cannonballs</title>
+        <title>Multiple Cannonballss</title>
         <style>
             button {
                 padding: 7px;
@@ -29,7 +29,7 @@
             var simMinWidth = 20.0;
             var cScale = Math.min(canvas.width, canvas.height) / simMinWidth;
             var simWidth = canvas.width / cScale;
-            var simHeight = canvas.height / cScale;
+            var simHeight = canvas.height / cScale; // Y축 변환, 캔버스 좌표가 반전
 
             function cX(pos) {
                 return pos.x * cScale;
@@ -39,13 +39,13 @@
                 return canvas.height - pos.y * cScale;
             }
 
-            var gravity = { x: 0.0, y: -10.0 };
-            var timeStep = 1.0 / 60.0;
+            var gravity = { x: 0.0, y: -10.0 }; //중력 설정 Y 방향으로 -10 
+            var timeStep = 1.0 / 60.0; // 1초당 60 프레임 
 
             // 여러 개의 공을 저장하는 배열
             var balls = [];
 
-            // 여러 개의 공을 생성하는 함수
+            // 공을 생성하는 함수
             function createBalls(numBalls) {
                 for (let i = 0; i < numBalls; i++) {
                     balls.push({
@@ -60,13 +60,13 @@
             createBalls(1);
 
             function Addball() {
-                createBalls(10);
+                createBalls(100);
             }
 
             function draw() {
                 c.clearRect(0, 0, canvas.width, canvas.height);
 
-                c.fillStyle = "#FF0000";
+                c.fillStyle = "#FF000";
 
                 for (let ball of balls) { 
                     c.beginPath();
@@ -79,12 +79,12 @@
             function CollisionDetection(ballA, ballB) {
                 let dx = ballB.pos.x - ballA.pos.x;
                 let dy = ballB.pos.y - ballA.pos.y;
-                let distance = Math.sqrt(dx * dx + dy * dy);
+                let distance = Math.sqrt(dx * dx + dy * dy); // 두 공 사이 거리 
 
-                let minDist = ballA.radius + ballB.radius;
+                let minDist = ballA.radius + ballB.radius; // 최소 거리 
 
                 if (distance < minDist) {
-                    let moveX = (dx / distance) * (minDist - distance);
+                    let moveX = (dx / distance) * (minDist - distance); // X 축에서 겹친 거리만
                     let moveY = (dy / distance) * (minDist - distance);
 
                     ballA.pos.x -= moveX / 2;
@@ -92,22 +92,19 @@
                     ballB.pos.x += moveX / 2;
                     ballB.pos.y += moveY / 2;
 
-                    // 충돌 후 속도 업데이트
-                    let normalX = dx / distance;
+                    let normalX = dx / distance; // 충돌방향 나타내는 단위벡터 
                     let normalY = dy / distance;
 
                     let relativeVelX = ballB.vel.x - ballA.vel.x;
-                    let relativeVelY = ballB.vel.y - ballA.vel.y;
+                    let relativeVelY = ballB.vel.y - ballA.vel.y; // 상대 속도 구하기 
                     let speed = (relativeVelX * normalX + relativeVelY * normalY);
 
-                    if (speed > 0) return;
+                    if (speed > 0) return; // speed가 0보다 크면 충돌 x
 
-                    let impulse = 2 * speed / (ballA.mass + ballB.mass);
-
-                    ballA.vel.x += impulse * ballB.mass * normalX;
-                    ballA.vel.y += impulse * ballB.mass * normalY;
-                    ballB.vel.x -= impulse * ballA.mass * normalX;
-                    ballB.vel.y -= impulse * ballA.mass * normalY;
+                    ballA.vel.x += speed * normalX;
+                    ballA.vel.y += speed * normalY;
+                    ballB.vel.x -= speed * normalX;
+                    ballB.vel.y -= speed * normalY;
                 }
             }
 
@@ -135,7 +132,7 @@
 
                 for (let i = 0; i < balls.length; i++) {
                     for (let j = i + 1; j < balls.length; j++) {
-                        CollisionDetection(balls[i], balls[j]);
+                        CollisionDetection(balls[i],balls[j]);
                     }
                 }
             }
