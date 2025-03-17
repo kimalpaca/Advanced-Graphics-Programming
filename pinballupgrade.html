@@ -207,10 +207,7 @@
 
             // paddle
 
-            var paddleWidth = 0.6;
-            var paddleHeight = 0.05;
-            var paddlePos = new Vector2(1.5, 0.06);
-            physicsScene.paddle = new Paddle(paddleWidth, paddleHeight, paddlePos);
+            physicsScene.paddle = new Paddle(0.6, 0.05, new Vector2(1.5, 0.06);
 
             // obstacles 
 
@@ -340,7 +337,7 @@
 
             physicsScene.score++;
 
-            // 🚀 벽돌이 깨지게 만들기!
+            // 벽돌이 깨지게 만들기!
             physicsScene.obstacles = physicsScene.obstacles.filter(obj => obj !== obstacle);
         }
 
