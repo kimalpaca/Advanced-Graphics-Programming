@@ -212,7 +212,7 @@
             var paddlePos = new Vector2(1.5, 0.06);
             physicsScene.paddle = new Paddle(paddleWidth, paddleHeight, paddlePos);
 
-            // obstacles 
+            // obstacles  
 
             {
                 physicsScene.obstacles = [];
@@ -340,7 +340,7 @@
 
             physicsScene.score++;
 
-            // 🚀 벽돌이 깨지게 만들기!
+            // 벽돌이 깨지게 만들기!
             physicsScene.obstacles = physicsScene.obstacles.filter(obj => obj !== obstacle);
         }
 
@@ -438,15 +438,13 @@
                     handleBallBallCollision(ball, ball2, physicsScene.restitution);
                 }
 
-                // 🚀 충돌 체크하고 부숴지는 기능 적용
+                // 충돌 체크하고 부숴지는 기능 적용
                 physicsScene.obstacles.forEach(obstacle => handleBallObstacleCollision(ball, obstacle));
 
                 handleBallBorderCollision(ball, physicsScene.border);
                 handleBallPaddleCollision(ball, physicsScene.paddle);
             }
 
-            // ⚠️ 캔버스 밖으로 나간 공 삭제
-            physicsScene.balls = physicsScene.balls.filter(ball => ball.pos.y <= simHeight);
         }
 
 
