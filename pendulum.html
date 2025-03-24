@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendulum</title>
+<style>
+    body {
+        font-family: verdana;
+        font-size: 15px;
+    }
+
+    .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+    }
+</style>
+
+<body>
+    <button class="button" onclick="setupScene()">Restart</button>
+    <button class="button" onclick="run()">Run</button>
+    <button class="button" onclick="step()">Stop</button>
+
+    <canvas id="myCanvas"></canvas>
+    <script>
+        var canvas = document.getElementById("myCanvas");
+        var c = canvas.getContext("2d");
+        canvas.width = window.innerWidth - 20;
+        canvas.height = window.innerHeight - 20;
+
+        var simMinWidth = 1.0;
+        var cScale = Math.min(canvas.width, canvas.height) / simMinWidth;
+        
+
+        function cX(pos) { return canvas.width / 2 + pos.x * cScale; }
+        function cY(pos) { return 0.4 * canvas.height - pos.y * cScale; }
+
+        document.addEventListener("keydown", event => {
+            if (event.isComposing || event.keyCode === 229)
+                return;
+            if (event.key === "ArrowLeft") {
+                scene.pendulum.applyTorque(-5.1); // 왼쪽 회전
+            } else if (event.key === "ArrowRight") {
+                scene.pendulum.applyTorque(5.0); // 오른쪽 회전
+            }
+        });
+
+        class Pendulum {
+            constructor(usePBD, color, masses, lengths, angles) {
+                this.usePBD = usePBD;
+                this.color = color;
+                this.masses = [0.0];
+                this.lengths = [0.0];
+                this.pos = [{ x: 0, y: 0 }];
+                this.prevPos = [{ x: 0.0, y: 0.0 }];
+                this.vel = [{ x: 0, y: 0 }];
+                this.theta = [0.0];
+                this.omega = [0.0];
+
+                this.torque = 0;
+
+                var x = 0.0, y = 0.0;
+                for (var i = 0; i < masses.length; i++) {
+                    this.masses.push(masses[i]);
+                    this.lengths.push(lengths[i]);
+                    this.theta.push(angles[i]);
+                    this.omega.push(0.0);
+                    x += lengths[i] * Math.sin(angles[i]);
+                    y += lengths[i] * -Math.cos(angles[i]);
+                    this.pos.push({ x: x, y: y });
+                    this.prevPos.push({ x: x, y: y });
+                    this.vel.push({ x: 0, y: 0 });
+                }
+            }
+
+            applyTorque(t) {
+                this.torque = t;
+            }
+
+            simulate(dt, gravity) {
+                if (this.usePBD) {
+                    this.simulatePBD(dt, gravity);
+                } else {
+                    this.simulateAnalytic(dt, gravity);
+                }
+            }
+
+            simulatePBD(dt, gravity) {
+                for (var i = 1; i < this.masses.length; i++) {
+                    this.vel[i].y += dt * scene.gravity;
+                    this.prevPos[i].x = this.pos[i].x;
+                    this.prevPos[i].y = this.pos[i].y;
+                    this.pos[i].x += this.vel[i].x * dt;
+                    this.pos[i].y += this.vel[i].y * dt;
+                }
+                for (var i = 1; i < this.masses.length; i++) {
+                    var dx = this.pos[i].x - this.pos[i - 1].x;
+                    var dy = this.pos[i].y - this.pos[i - 1].y;
+                    var d = Math.sqrt(dx * dx + dy * dy);
+                    var corr = (this.lengths[i] - d) / d / 2.0;
+                    this.pos[i - 1].x -= corr * dx;
+                    this.pos[i - 1].y -= corr * dy;
+                    this.pos[i].x += corr * dx;
+                    this.pos[i].y += corr * dy;
+                }
+                for (var i = 1; i < this.masses.length; i++) {
+                    this.vel[i].x = (this.pos[i].x - this.prevPos[i].x) / dt;
+                    this.vel[i].y = (this.pos[i].y - this.prevPos[i].y) / dt;
+                }
+
+                this.vel[1].x += this.torque * dt;
+
+                this.torque = 0;
+            }
+
+
+            draw() {
+                c.fillStyle = "#000000";
+                c.fillRect(0, 0, canvas.width, canvas.height);
+
+                c.strokeStyle = "#5bc8c8";
+                c.lineWidth = 10;
+                c.beginPath();
+                c.moveTo(cX(this.pos[0]), cY(this.pos[0]));
+                for (var i = 1; i < this.masses.length; i++)
+                    c.lineTo(cX(this.pos[i]), cY(this.pos[i]));
+                c.stroke();
+                c.lineWidth = 1;
+
+                c.fillStyle = this.color;
+                for (var i = 1; i < this.masses.length; i++) {
+                    var r = 0.03 * Math.sqrt(this.masses[i]);
+                    c.beginPath();
+                    c.arc(cX(this.pos[i]), cY(this.pos[i]), cScale * r, 0.0, 2.0 * Math.PI);
+                    c.closePath();
+                    c.fill();
+                }
+            }
+        }
+
+        var scene = {
+            gravity: -10.0,
+            dt: 0.01,
+            numSubSteps: 10000,
+            paused: true,
+            pendulum: null
+        };
+
+        function setupScene() {
+            var masses = [1.0, 1.0];
+            var lengths = [0.2, 0.15];
+            var angles = [Math.PI / 4, Math.PI / 2];
+
+            scene.pendulum = new Pendulum(true, "#d4c531", masses, lengths, angles);
+            scene.paused = true;
+        }
+
+        function run() {
+            scene.paused = false;
+        }
+
+        function step() {
+            scene.paused = false;
+            simulate();
+            scene.paused = true;
+        }
+
+        function simulate() {
+            if (scene.paused) return;
+            var sdt = scene.dt / scene.numSubSteps;
+            for (var step = 0; step < scene.numSubSteps; step++) {
+                if (scene.pendulum) {
+                    scene.pendulum.simulate(sdt, scene.gravity);
+                }
+            }
+        }
+
+        function update() {
+            simulate();
+            scene.pendulum.draw();
+            requestAnimationFrame(update);
+        }
+        setupScene();
+        update();
+    </script>
+</body>
+
+</html>
