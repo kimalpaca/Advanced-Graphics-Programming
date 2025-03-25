@@ -33,7 +33,6 @@
 
         var simMinWidth = 1.0;
         var cScale = Math.min(canvas.width, canvas.height) / simMinWidth;
-        
 
         function cX(pos) { return canvas.width / 2 + pos.x * cScale; }
         function cY(pos) { return 0.4 * canvas.height - pos.y * cScale; }
@@ -42,9 +41,9 @@
             if (event.isComposing || event.keyCode === 229)
                 return;
             if (event.key === "ArrowLeft") {
-                scene.pendulum.applyTorque(-5.1); // 왼쪽 회전
+                scene.pendulum.applyTorque(-5.1);
             } else if (event.key === "ArrowRight") {
-                scene.pendulum.applyTorque(5.0); // 오른쪽 회전
+                scene.pendulum.applyTorque(5.0);
             }
         });
 
@@ -52,27 +51,38 @@
             constructor(usePBD, color, masses, lengths, angles) {
                 this.usePBD = usePBD;
                 this.color = color;
-                this.masses = [0.0];
+                this.masses = [];
                 this.lengths = [0.0];
-                this.pos = [{ x: 0, y: 0 }];
-                this.prevPos = [{ x: 0.0, y: 0.0 }];
-                this.vel = [{ x: 0, y: 0 }];
-                this.theta = [0.0];
-                this.omega = [0.0];
+                this.pos = [];
+                this.prevPos = [];
+                this.vel = [];
+                this.theta = [];
+                this.omega = [];
+                this.torque = 0; // 힘
 
-                this.torque = 0;
+                // 고정된 첫 번째 공 위치
+                let x = 0.0, y = 0.0;
+                this.pos.push({ x: x, y: y });
+                this.prevPos.push({ x: x, y: y });
+                this.vel.push({ x: 0, y: 0 });
+                this.masses.push(masses[0]);
+                this.theta.push(0.0);
+                this.omega.push(0.0);
 
-                var x = 0.0, y = 0.0;
-                for (var i = 0; i < masses.length; i++) {
-                    this.masses.push(masses[i]);
-                    this.lengths.push(lengths[i]);
-                    this.theta.push(angles[i]);
+                // 나머지 공과 막대기
+                for (let i = 1; i < masses.length; i++) {
+                    this.lengths.push(lengths[i - 1]);
+                    let angle = angles[i - 1];
+                    this.theta.push(angle);
                     this.omega.push(0.0);
-                    x += lengths[i] * Math.sin(angles[i]);
-                    y += lengths[i] * -Math.cos(angles[i]);
+
+                    x += lengths[i - 1] * Math.sin(angle);
+                    y += -lengths[i - 1] * Math.cos(angle);
+
                     this.pos.push({ x: x, y: y });
                     this.prevPos.push({ x: x, y: y });
                     this.vel.push({ x: 0, y: 0 });
+                    this.masses.push(masses[i]);
                 }
             }
 
@@ -89,50 +99,51 @@
             }
 
             simulatePBD(dt, gravity) {
-                for (var i = 1; i < this.masses.length; i++) {
-                    this.vel[i].y += dt * scene.gravity;
+                for (let i = 1; i < this.masses.length; i++) {
+                    this.vel[i].y += dt * gravity;
                     this.prevPos[i].x = this.pos[i].x;
                     this.prevPos[i].y = this.pos[i].y;
                     this.pos[i].x += this.vel[i].x * dt;
                     this.pos[i].y += this.vel[i].y * dt;
                 }
-                for (var i = 1; i < this.masses.length; i++) {
-                    var dx = this.pos[i].x - this.pos[i - 1].x;
-                    var dy = this.pos[i].y - this.pos[i - 1].y;
-                    var d = Math.sqrt(dx * dx + dy * dy);
-                    var corr = (this.lengths[i] - d) / d / 2.0;
+
+                for (let i = 1; i < this.masses.length; i++) {
+                    let dx = this.pos[i].x - this.pos[i - 1].x;
+                    let dy = this.pos[i].y - this.pos[i - 1].y;
+                    let d = Math.sqrt(dx * dx + dy * dy);
+                    let corr = (this.lengths[i] - d) / d / 2.0;
                     this.pos[i - 1].x -= corr * dx;
                     this.pos[i - 1].y -= corr * dy;
                     this.pos[i].x += corr * dx;
                     this.pos[i].y += corr * dy;
                 }
-                for (var i = 1; i < this.masses.length; i++) {
+
+                for (let i = 1; i < this.masses.length; i++) {
                     this.vel[i].x = (this.pos[i].x - this.prevPos[i].x) / dt;
                     this.vel[i].y = (this.pos[i].y - this.prevPos[i].y) / dt;
                 }
 
                 this.vel[1].x += this.torque * dt;
-
                 this.torque = 0;
             }
-
 
             draw() {
                 c.fillStyle = "#000000";
                 c.fillRect(0, 0, canvas.width, canvas.height);
 
                 c.strokeStyle = "#5bc8c8";
-                c.lineWidth = 10;
+                c.lineWidth = 30;
                 c.beginPath();
                 c.moveTo(cX(this.pos[0]), cY(this.pos[0]));
-                for (var i = 1; i < this.masses.length; i++)
+                for (let i = 1; i < this.pos.length; i++) {
                     c.lineTo(cX(this.pos[i]), cY(this.pos[i]));
+                }
                 c.stroke();
                 c.lineWidth = 1;
 
                 c.fillStyle = this.color;
-                for (var i = 1; i < this.masses.length; i++) {
-                    var r = 0.03 * Math.sqrt(this.masses[i]);
+                for (let i = 0; i < this.masses.length-1; i++) {
+                    let r = 0.02 * Math.sqrt(this.masses[i]);
                     c.beginPath();
                     c.arc(cX(this.pos[i]), cY(this.pos[i]), cScale * r, 0.0, 2.0 * Math.PI);
                     c.closePath();
@@ -150,9 +161,9 @@
         };
 
         function setupScene() {
-            var masses = [1.0, 1.0];
-            var lengths = [0.2, 0.15];
-            var angles = [Math.PI / 4, Math.PI / 2];
+            let masses = [1.0, 1.0, 1.0];          
+            let lengths = [0.2, 0.15];               
+            let angles = [Math.PI / 4, Math.PI / 3]; 
 
             scene.pendulum = new Pendulum(true, "#d4c531", masses, lengths, angles);
             scene.paused = true;
@@ -170,8 +181,8 @@
 
         function simulate() {
             if (scene.paused) return;
-            var sdt = scene.dt / scene.numSubSteps;
-            for (var step = 0; step < scene.numSubSteps; step++) {
+            let sdt = scene.dt / scene.numSubSteps;
+            for (let step = 0; step < scene.numSubSteps; step++) {
                 if (scene.pendulum) {
                     scene.pendulum.simulate(sdt, scene.gravity);
                 }
@@ -183,9 +194,9 @@
             scene.pendulum.draw();
             requestAnimationFrame(update);
         }
+
         setupScene();
         update();
     </script>
 </body>
-
 </html>
