@@ -37,15 +37,26 @@
         function cX(pos) { return canvas.width / 2 + pos.x * cScale; }
         function cY(pos) { return 0.4 * canvas.height - pos.y * cScale; }
 
+        let leftPressed = false;
+        let rightPressed = false;
+
         document.addEventListener("keydown", event => {
-            if (event.isComposing || event.keyCode === 229)
-                return;
             if (event.key === "ArrowLeft") {
-                scene.pendulum.applyTorque(-5.1);
+                leftPressed = true;
             } else if (event.key === "ArrowRight") {
-                scene.pendulum.applyTorque(5.0);
+                rightPressed = true;
             }
         });
+
+        document.addEventListener("keyup", event => {
+            if (event.key === "ArrowLeft") {
+                leftPressed = false;
+            } else if (event.key === "ArrowRight") {
+                rightPressed = false;
+            }
+        });
+
+
 
         class Pendulum {
             constructor(usePBD, color, masses, lengths, angles) {
@@ -87,7 +98,7 @@
             }
 
             applyTorque(t) {
-                this.torque = t;
+                this.torque += t;
             }
 
             simulate(dt, gravity) {
@@ -99,31 +110,59 @@
             }
 
             simulatePBD(dt, gravity) {
+                const frictionCoef = 1.0; // 마찰 계수: 값이 클수록 더 빨리 멈춤
+
                 for (let i = 1; i < this.masses.length; i++) {
+                    // 중력 적용
                     this.vel[i].y += dt * gravity;
+
+                    // 이전 위치 저장
                     this.prevPos[i].x = this.pos[i].x;
                     this.prevPos[i].y = this.pos[i].y;
+
+                    // 현재 위치 갱신
                     this.pos[i].x += this.vel[i].x * dt;
                     this.pos[i].y += this.vel[i].y * dt;
                 }
 
+                // 길이 제약 조건 (막대기 길이 유지)
                 for (let i = 1; i < this.masses.length; i++) {
                     let dx = this.pos[i].x - this.pos[i - 1].x;
                     let dy = this.pos[i].y - this.pos[i - 1].y;
                     let d = Math.sqrt(dx * dx + dy * dy);
                     let corr = (this.lengths[i] - d) / d / 2.0;
+
                     this.pos[i - 1].x -= corr * dx;
                     this.pos[i - 1].y -= corr * dy;
                     this.pos[i].x += corr * dx;
                     this.pos[i].y += corr * dy;
                 }
 
+                // 속도 계산 및 마찰력 적용
                 for (let i = 1; i < this.masses.length; i++) {
                     this.vel[i].x = (this.pos[i].x - this.prevPos[i].x) / dt;
                     this.vel[i].y = (this.pos[i].y - this.prevPos[i].y) / dt;
+
+                    // 속도 기반 마찰력 적용
+                    this.vel[i].x -= frictionCoef * this.vel[i].x * dt;
+                    this.vel[i].y -= frictionCoef * this.vel[i].y * dt;
                 }
 
-                this.vel[1].x += this.torque * dt;
+                // 외부 토크 적용 (방향 고려)
+                let offset = {
+                    x: this.pos[1].x - this.pos[0].x,
+                    y: this.pos[1].y - this.pos[0].y
+                };
+                let len = Math.sqrt(offset.x ** 2 + offset.y ** 2);
+                if (len > 0) {
+                    let nx = -offset.y / len;
+                    let ny = offset.x / len;
+
+                    let force = this.torque * 0.01;
+                    this.vel[1].x += nx * force;
+                    this.vel[1].y += ny * force;
+                }
+
                 this.torque = 0;
             }
 
@@ -132,7 +171,7 @@
                 c.fillRect(0, 0, canvas.width, canvas.height);
 
                 c.strokeStyle = "#5bc8c8";
-                c.lineWidth = 30;
+                c.lineWidth = 25;
                 c.beginPath();
                 c.moveTo(cX(this.pos[0]), cY(this.pos[0]));
                 for (let i = 1; i < this.pos.length; i++) {
@@ -142,7 +181,7 @@
                 c.lineWidth = 1;
 
                 c.fillStyle = this.color;
-                for (let i = 0; i < this.masses.length-1; i++) {
+                for (let i = 0; i < this.masses.length - 1; i++) {
                     let r = 0.02 * Math.sqrt(this.masses[i]);
                     c.beginPath();
                     c.arc(cX(this.pos[i]), cY(this.pos[i]), cScale * r, 0.0, 2.0 * Math.PI);
@@ -161,9 +200,9 @@
         };
 
         function setupScene() {
-            let masses = [1.0, 1.0, 1.0];          
-            let lengths = [0.2, 0.15];               
-            let angles = [Math.PI / 4, Math.PI / 3]; 
+            let masses = [1.0, 1.0, 1.0];
+            let lengths = [0.2, 0.15];
+            let angles = [Math.PI / 3, Math.PI / 2]; // 각도 차이 크게
 
             scene.pendulum = new Pendulum(true, "#d4c531", masses, lengths, angles);
             scene.paused = true;
@@ -171,7 +210,9 @@
 
         function run() {
             scene.paused = false;
+            scene.pendulum.applyTorque(5.0);
         }
+
 
         function step() {
             scene.paused = false;
@@ -181,6 +222,14 @@
 
         function simulate() {
             if (scene.paused) return;
+
+            // 키보드 입력에 따라 토크 계속 적용
+            if (leftPressed) {
+                scene.pendulum.applyTorque(-20);
+            } else if (rightPressed) {
+                scene.pendulum.applyTorque(20);
+            }
+
             let sdt = scene.dt / scene.numSubSteps;
             for (let step = 0; step < scene.numSubSteps; step++) {
                 if (scene.pendulum) {
@@ -188,6 +237,7 @@
                 }
             }
         }
+
 
         function update() {
             simulate();
@@ -199,4 +249,5 @@
         update();
     </script>
 </body>
+
 </html>
