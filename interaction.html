@@ -162,14 +162,14 @@
                         A.pos.add(correction.clone().negate());
                         B.pos.add(correction);
 
-                        // 간단한 속도 반사 (탄성 충돌)
+                        // 속도 반사 (탄성 충돌)
                         let normal = delta.clone().normalize();
                         let relativeVelocity = new THREE.Vector3().subVectors(B.vel, A.vel);
                         let velAlongNormal = relativeVelocity.dot(normal);
 
                         if (velAlongNormal < 0) {
-                            let bounce = 1.0; // 1 = 완전탄성
-                            let impulse = normal.clone().multiplyScalar(-(1 + bounce) * velAlongNormal / 2);
+                            let bounce = 1.0;
+                            let impulse = normal.clone().multiplyScalar(-(bounce) * velAlongNormal/2);
                             A.vel.add(impulse.clone().negate());
                             B.vel.add(impulse);
                         }
