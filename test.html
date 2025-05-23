@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acrobot Simulation</title>
+    <style>
+        canvas {
+            background: #eee;
+            display: block;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="acrobotCanvas" width="500" height="500"></canvas>
+    <script>
+        class AcrobotEnv {
+            constructor() {
+                this.LINK_LENGTH_1 = 1.0;
+                this.LINK_LENGTH_2 = 1.0;
+                this.LINK_MASS_1 = 1.0;
+                this.LINK_MASS_2 = 1.0;
+                this.LINK_COM_POS_1 = 0.5;
+                this.LINK_COM_POS_2 = 0.5;
+                this.LINK_MOI = 1.0;
+                this.MAX_VEL_1 = 4 * Math.PI;
+                this.MAX_VEL_2 = 9 * Math.PI;
+                this.AVAIL_TORQUE = [-1.0, 0.0, 1.0];
+                this.dt = 0.2;
+                this.state = [0, 0, 0, 0]; // 초기 상태 (theta1, theta2, dtheta1, dtheta2)
+            }
+
+            rk4(derivs, y0, t) {
+                let dt = t[1] - t[0];
+                let dt2 = dt / 2.0;
+                let k1 = derivs(y0);
+                let k2 = derivs(y0.map((yi, i) => yi + dt2 * k1[i]));
+                let k3 = derivs(y0.map((yi, i) => yi + dt2 * k2[i]));
+                let k4 = derivs(y0.map((yi, i) => yi + dt * k3[i]));
+                return y0.map((yi, i) => yi + (dt / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+            }
+
+            _dsdt(stateAugmented) {
+                let m1 = this.LINK_MASS_1, m2 = this.LINK_MASS_2;
+                let l1 = this.LINK_LENGTH_1, lc1 = this.LINK_COM_POS_1, lc2 = this.LINK_COM_POS_2;
+                let I1 = this.LINK_MOI, I2 = this.LINK_MOI, g = 9.8;
+                let a = stateAugmented[4];
+                let s = stateAugmented.slice(0, 4);
+                let theta1 = s[0], theta2 = s[1], dtheta1 = s[2], dtheta2 = s[3];
+
+                let d1 = m1 * lc1**2 + m2 * (l1**2 + lc2**2 + 2 * l1 * lc2 * Math.cos(theta2)) + I1 + I2;
+                let d2 = m2 * (lc2**2 + l1 * lc2 * Math.cos(theta2)) + I2;
+                let phi2 = m2 * lc2 * g * Math.cos(theta1 + theta2 - Math.PI / 2);
+                let phi1 = (-m2 * l1 * lc2 * dtheta2**2 * Math.sin(theta2) - 2 * m2 * l1 * lc2 * dtheta2 * dtheta1 * Math.sin(theta2) +
+                            (m1 * lc1 + m2 * l1) * g * Math.cos(theta1 - Math.PI / 2) + phi2);
+                let ddtheta2 = (a + (d2 / d1) * phi1 - phi2) / (m2 * lc2**2 + I2 - (d2**2 / d1));
+                let ddtheta1 = -(d2 * ddtheta2 + phi1) / d1;
+
+                return [dtheta1, dtheta2, ddtheta1, ddtheta2, 0.0];
+            }
+
+            step(actionIndex) {
+                let torque = this.AVAIL_TORQUE[actionIndex];
+                let stateAugmented = [...this.state, torque];
+                let nextState = this.rk4((s) => this._dsdt(s), stateAugmented, [0, this.dt]);
+
+                nextState[0] = this.wrap(nextState[0], -Math.PI, Math.PI);
+                nextState[1] = this.wrap(nextState[1], -Math.PI, Math.PI);
+                nextState[2] = this.bound(nextState[2], -this.MAX_VEL_1, this.MAX_VEL_1);
+                nextState[3] = this.bound(nextState[3], -this.MAX_VEL_2, this.MAX_VEL_2);
+
+                this.state = nextState;
+                let terminated = this._terminal();
+                let reward = terminated ? 0.0 : -1.0;
+
+                return { state: this._get_ob(), reward, terminated };
+            }
+
+            _terminal() {
+                return -Math.cos(this.state[0]) - Math.cos(this.state[1] + this.state[0]) > 1.0;
+            }
+
+            _get_ob() {
+                return [Math.cos(this.state[0]), Math.sin(this.state[0]), 
+                        Math.cos(this.state[1]), Math.sin(this.state[1]), 
+                        this.state[2], this.state[3]];
+            }
+
+            bound(x, min, max) {
+                return Math.min(Math.max(x, min), max);
+            }
+
+            wrap(x, min, max) {
+                let diff = max - min;
+                while (x > max) x -= diff;
+                while (x < min) x += diff;
+                return x;
+            }
+        }
+
+        let acrobot = new AcrobotEnv();
+        console.log("Initial State:", acrobot.state);
+
+        for (let i = 0; i < 10; i++) {
+            let action = Math.floor(Math.random() * 3); // Select action randomly
+            let result = acrobot.step(action);
+            console.log(`Step ${i+1}:`, result);
+        }
+    </script>
+</body>
+</html>

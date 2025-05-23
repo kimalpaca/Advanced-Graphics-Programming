@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendulum with ONNX</title>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<style>
+    body {
+        font-family: verdana;
+        font-size: 15px;
+    }
+
+    .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+    }
+</style>
+
+<body>
+    <button class="button" onclick="setupScene()">Restart</button>
+    <button class="button" onclick="run()">Run</button>
+    <button class="button" onclick="step()">Stop</button>
+
+    <canvas id="myCanvas"></canvas>
+    <script>
+        var canvas = document.getElementById("myCanvas");
+        var c = canvas.getContext("2d");
+        canvas.width = window.innerWidth - 20;
+        canvas.height = window.innerHeight - 20;
+        var cScale = Math.min(canvas.width, canvas.height) / 1.0;
+        function cX(pos) { return canvas.width / 2 + pos.x * cScale; }
+        function cY(pos) { return 0.4 * canvas.height - pos.y * cScale; }
+
+        let leftPressed = false;
+        let rightPressed = false;
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "ArrowLeft") leftPressed = true;
+            else if (event.key === "ArrowRight") rightPressed = true;
+        });
+        document.addEventListener("keyup", event => {
+            if (event.key === "ArrowLeft") leftPressed = false;
+            else if (event.key === "ArrowRight") rightPressed = false;
+        });
+
+        class Pendulum {
+            constructor(usePBD, color, masses, lengths, angles) {
+                this.usePBD = usePBD;
+                this.color = color;
+                this.masses = [];
+                this.lengths = [0.0];
+                this.pos = [];
+                this.prevPos = [];
+                this.vel = [];
+                this.theta = [];
+                this.omega = [];
+                this.torque = 0;
+
+                let x = 0.0, y = 0.0;
+                this.pos.push({ x: x, y: y });
+                this.prevPos.push({ x: x, y: y });
+                this.vel.push({ x: 0, y: 0 });
+                this.masses.push(masses[0]);
+                this.theta.push(0.0);
+                this.omega.push(0.0);
+
+                for (let i = 1; i < masses.length; i++) {
+                    this.lengths.push(lengths[i - 1]);
+                    let angle = angles[i - 1];
+                    this.theta.push(angle);
+                    this.omega.push(0.0);
+
+                    x += lengths[i - 1] * Math.sin(angle);
+                    y += -lengths[i - 1] * Math.cos(angle);
+
+                    this.pos.push({ x: x, y: y });
+                    this.prevPos.push({ x: x, y: y });
+                    this.vel.push({ x: 0, y: 0 });
+                    this.masses.push(masses[i]);
+                }
+            }
+
+            applyTorque(t) { this.torque += t; }
+
+            getObservation() {
+                return [
+                    Math.cos(this.theta[1]), Math.sin(this.theta[1]),
+                    Math.cos(this.theta[2]), Math.sin(this.theta[2]),
+                    this.omega[1], this.omega[2]
+                ];
+            }
+
+            simulatePBD(dt, gravity) {
+                const frictionCoef = 1.0;
+                for (let i = 1; i < this.masses.length; i++) {
+                    this.vel[i].y += dt * gravity;
+                    this.prevPos[i].x = this.pos[i].x;
+                    this.prevPos[i].y = this.pos[i].y;
+                    this.pos[i].x += this.vel[i].x * dt;
+                    this.pos[i].y += this.vel[i].y * dt;
+                }
+                for (let i = 1; i < this.masses.length; i++) {
+                    let dx = this.pos[i].x - this.pos[i - 1].x;
+                    let dy = this.pos[i].y - this.pos[i - 1].y;
+                    let d = Math.sqrt(dx * dx + dy * dy);
+                    let corr = (this.lengths[i] - d) / d / 2.0;
+                    this.pos[i - 1].x -= corr * dx;
+                    this.pos[i - 1].y -= corr * dy;
+                    this.pos[i].x += corr * dx;
+                    this.pos[i].y += corr * dy;
+                }
+                for (let i = 1; i < this.masses.length; i++) {
+                    this.vel[i].x = (this.pos[i].x - this.prevPos[i].x) / dt;
+                    this.vel[i].y = (this.pos[i].y - this.prevPos[i].y) / dt;
+                    this.vel[i].x -= frictionCoef * this.vel[i].x * dt;
+                    this.vel[i].y -= frictionCoef * this.vel[i].y * dt;
+                }
+
+                let offset = {
+                    x: this.pos[1].x - this.pos[0].x,
+                    y: this.pos[1].y - this.pos[0].y
+                };
+                let len = Math.sqrt(offset.x ** 2 + offset.y ** 2);
+                if (len > 0) {
+                    let nx = -offset.y / len;
+                    let ny = offset.x / len;
+                    let force = this.torque * 0.01;
+                    this.vel[1].x += nx * force;
+                    this.vel[1].y += ny * force;
+                }
+                this.torque = 0;
+            }
+
+            draw() {
+                c.fillStyle = "#000000";
+                c.fillRect(0, 0, canvas.width, canvas.height);
+
+                c.strokeStyle = "#5bc8c8";
+                c.lineWidth = 27;
+                c.beginPath();
+                c.moveTo(cX(this.pos[0]), cY(this.pos[0]));
+                for (let i = 1; i < this.pos.length; i++) {
+                    c.lineTo(cX(this.pos[i]), cY(this.pos[i]));
+                }
+                c.stroke();
+                c.lineWidth = 1;
+
+                c.fillStyle = this.color;
+                for (let i = 0; i < this.masses.length - 1; i++) {
+                    let r = 0.02 * Math.sqrt(this.masses[i]);
+                    c.beginPath();
+                    c.arc(cX(this.pos[i]), cY(this.pos[i]), cScale * r, 0.0, 2.0 * Math.PI);
+                    c.closePath();
+                    c.fill();
+                }
+            }
+        }
+
+        var scene = {
+            gravity: -10.0,
+            dt: 0.01,
+            numSubSteps: 1000,
+            paused: true,
+            pendulum: null,
+            session: null
+        };
+
+        async function setupScene() {
+            let masses = [1.0, 1.0, 1.0];
+            let lengths = [0.2, 0.15];
+            let angles = [Math.PI / 3, Math.PI / 2];
+            scene.pendulum = new Pendulum(true, "#d4c531", masses, lengths, angles);
+            scene.session = await ort.InferenceSession.create("Acrobot_dqn.onnx");
+            scene.paused = true;
+        }
+
+        async function run() {
+            scene.paused = false;
+        }
+
+        async function step() {
+            scene.paused = false;
+            await simulate();
+            scene.paused = true;
+        }
+
+        async function simulate() {
+            if (scene.paused || !scene.session) return;
+
+            const obs = scene.pendulum.getObservation();
+            const input = new ort.Tensor("float32", new Float32Array(obs), [1, 6]);
+            const feeds = {};
+            feeds[scene.session.inputNames[0]] = input;
+
+            const results = await scene.session.run(feeds);
+            const output = results[scene.session.outputNames[0]].data;
+            const action = output.indexOf(Math.max(...output));
+            const torque = [-1, 0, 1][action] * 10;
+            scene.pendulum.applyTorque(torque);
+
+            let sdt = scene.dt / scene.numSubSteps;
+            for (let i = 0; i < scene.numSubSteps; i++) {
+                scene.pendulum.simulatePBD(sdt, scene.gravity);
+            }
+        }
+
+        async function update() {
+            await simulate();
+            scene.pendulum.draw();
+            requestAnimationFrame(update);
+        }
+
+        setupScene().then(update);
+    </script>
+</body>
+</html>

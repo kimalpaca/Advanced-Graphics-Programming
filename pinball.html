@@ -190,6 +190,14 @@
 			}
 		}
 
+		class Item {
+			constructor(radius, pos, type) {
+				this.radius = radius;
+				this.pos = pos.clone;
+				this.type = type; // 속도 느려짐, 빨라짐, 공 1개 추가 아이템 
+			}
+		}
+
 		var physicsScene =
 		{
 			gravity: new Vector2(0.0, -3.0),
@@ -231,7 +239,7 @@
 
 			physicsScene.border.push(new Vector2(2.82, 0.25));
 			physicsScene.border.push(new Vector2(3.56, 0.8));
-			physicsScene.border.push(new Vector2(3.56, 1.68)); 
+			physicsScene.border.push(new Vector2(3.56, 1.68));
 			physicsScene.border.push(new Vector2(0.02, 1.68));
 			physicsScene.border.push(new Vector2(0.02, 0.8));
 			physicsScene.border.push(new Vector2(0.76, 0.25));
@@ -245,7 +253,7 @@
 
 
 
-			// obstacles  
+			// obstacles 
 
 			{
 				physicsScene.obstacles = [];
@@ -293,6 +301,30 @@
 				physicsScene.flippers.push(
 					new Flipper(radius, pos2, length,
 						Math.PI + restAngle, -maxRotation, angularVelocity, restitution));
+			}
+
+			// items
+
+			{
+				physicsScene.items = [];
+				physicsScene.items.push(new Item(0.05, new Vector2(0.5, 1.2), "slow"));
+				physicsScene.items.push(new Item(0.05, new Vector2(1.5, 1.2), "fast"));
+				physicsScene.items.push(new Item(0.05, new Vector2(2.5, 1.2), "addBall"));
+				u
+			}
+		}
+
+		function applyItemEffect(type) {
+			if (type === "slow") { // 속도 느려짐
+				for (let ball of physicsScene.balls) {
+					ball.vel.scale(0.7); // 속도를 70%로 감소
+				}
+			} else if (type === "fast") { // 속도 빨라짐
+				for (let ball of physicsScene.balls) {
+					ball.vel.scale(1.3); // 속도를 130%로 증가
+				}
+			} else if (type === "addBall") { // 공 추가
+				createBalls(1); // 공 1개 추가
 			}
 		}
 
@@ -360,6 +392,12 @@
 				drawDisc(flipper.length * cScale, 0, flipper.radius * cScale);
 				c.resetTransform();
 			}
+
+			c.fillStyle = "#FFD700"; // 노란색 (골드)
+			for (let item of physicsScene.items) {
+				drawDisc(cX(item.pos), cY(item.pos), item.radius * cScale);
+			}
+		}
 		}
 
 		// --- collision handling -------------------------------------------------------
@@ -466,6 +504,18 @@
 				}
 			}
 
+			function handleBallItemCollision(ball, itemIndex) {
+				let item = physicsScene.items[itemIndex];
+				let dir = new Vector2();
+				dir.subtractVectors(ball.pos, item.pos);
+				let d = dir.length();
+
+				if (d < ball.radius + item.radius) {
+					applyItemEffect(item.type); // 효과 적용
+					physicsScene.items.splice(itemIndex, 1); // 아이템 제거
+				}
+			}
+
 			// push out
 			d.subtractVectors(ball.pos, closest);
 			var dist = d.length();
@@ -512,6 +562,10 @@
 					handleBallFlipperCollision(ball, physicsScene.flippers[j]);
 
 				handleBallBorderCollision(ball, physicsScene.border);
+
+				for (let j = physicsScene.items.length - 1; j >= 0; j--) {
+					handleBallItemCollision(ball, j);
+				}
 
 			}
 		}

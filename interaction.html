@@ -82,6 +82,7 @@
                 this.pos.addScaledVector(this.vel, gPhysicsScene.dt);
 
                 var size = gPhysicsScene.worldSize;
+                this.vel.multiplyScalar(0.99);
 
                 if (this.pos.x < -size.x) {
                     this.pos.x = -size.x; this.vel.x = -this.vel.x;
@@ -169,7 +170,7 @@
 
                         if (velAlongNormal < 0) {
                             let bounce = 1.0;
-                            let impulse = normal.clone().multiplyScalar(-(bounce) * velAlongNormal/2);
+                            let impulse = normal.clone().multiplyScalar(-(1+bounce) * velAlongNormal/2);
                             A.vel.add(impulse.clone().negate());
                             B.vel.add(impulse);
                         }

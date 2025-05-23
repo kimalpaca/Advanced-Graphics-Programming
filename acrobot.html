@@ -153,6 +153,7 @@
                     x: this.pos[1].x - this.pos[0].x,
                     y: this.pos[1].y - this.pos[0].y
                 };
+                
                 let len = Math.sqrt(offset.x ** 2 + offset.y ** 2);
                 if (len > 0) {
                     let nx = -offset.y / len;
@@ -171,7 +172,7 @@
                 c.fillRect(0, 0, canvas.width, canvas.height);
 
                 c.strokeStyle = "#5bc8c8";
-                c.lineWidth = 25;
+                c.lineWidth = 27;
                 c.beginPath();
                 c.moveTo(cX(this.pos[0]), cY(this.pos[0]));
                 for (let i = 1; i < this.pos.length; i++) {
